@@ -1,0 +1,9 @@
+### security 회원가입
+POST http://localhost:8080/register
+Content-Type: application/json
+
+{
+  "name": "dragon",
+  "email": "security@gmail.com",
+  "password": "1234"
+}
