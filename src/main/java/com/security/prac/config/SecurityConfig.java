@@ -1,6 +1,7 @@
 package com.security.prac.config;
 
 import com.security.prac.domain.Member;
+import com.security.prac.filter.MyCsrfCookieFilter;
 import com.security.prac.repository.MemberRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -18,6 +20,9 @@ import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.servlet.util.matcher.MvcRequestMatcher;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
@@ -44,6 +49,18 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http,MvcRequestMatcher.Builder mvc) throws Exception {
+        // 아래는 csrf 토큰을 header에 노출 시켜줌 => 자세히 알아볼 것
+        CsrfTokenRequestAttributeHandler csrfRequestHandler = new CsrfTokenRequestAttributeHandler();
+        csrfRequestHandler.setCsrfRequestAttributeName("_csrf"); // default name이랑 같다.
+
+
+        http.securityContext(context -> context.requireExplicitSave(false)) // 개발자가 JSESSION 쿠키 직접 저장 하지 않고 시큐리티에게 위임
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.ALWAYS));
+        //csrf 쿠키 설정 시작 => 매 요청 마다 BasicAuthenticationFilter시행 이후(로그인 성공)에 csrf 토큰 발급
+        http.csrf(csrf -> csrf.csrfTokenRequestHandler(csrfRequestHandler).ignoringRequestMatchers(mvc.pattern("/contact"), mvc.pattern("/register"))
+                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())) // csrfToken을 메모리에 상주시킴 + client(react,angular)가 읽을 수 있게 설정(httpOnlyFalse())
+                .addFilterAfter(new MyCsrfCookieFilter(), BasicAuthenticationFilter.class);
+        //csrf 토큰 발급 끝
         http.authorizeHttpRequests((req) -> req
                 .requestMatchers(
                         mvc.pattern("/myCards"),
@@ -71,6 +88,7 @@ public class SecurityConfig {
                     .anyRequest().denyAll()
             );
         */
+        //LEARN cors 설정 start
         http.cors(cors -> cors.configurationSource(new CorsConfigurationSource() {
             @Override
             public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
